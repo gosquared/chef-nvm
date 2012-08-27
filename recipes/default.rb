@@ -9,43 +9,42 @@
 
 package 'git-core'
 
-bash "Install NVM" do
-  @user  = node['nvm']['user']
-  @group = node['nvm']['group'] || @user
-  @home  = node['nvm']['home'] || "/home/#{@user}"
+$user  = node['nvm']['user']
+$group = node['nvm']['group'] || $user
+$home  = node['nvm']['home'] || "/home/#{$user}"
 
-  user  @user
-  group @group
-  cwd   @home
+execute "install-nvm" do
+  user  $user
+  group $group
+  cwd   $home
 
-  code <<-EOF
-if [ ! -d #{@home}/.nvm ]
+  command <<-EOF
+if [ ! -d #{$home}/.nvm ]
   then
-    git clone git://github.com/creationix/nvm.git #{@home}/.nvm
+    git clone git://github.com/creationix/nvm.git #{$home}/.nvm
 fi
 
-grep nvm.sh #{@home}/.bashrc
+grep nvm.sh #{$home}/.bashrc
 
 if [ $? -eq 1 ]
   then
-    echo -e '\n\n. ~/.nvm/nvm.sh' >> #{@home}/.bashrc
+    echo -e '\n\n. ~/.nvm/nvm.sh' >> #{$home}/.bashrc
     . ~/.nvm/nvm.sh
 fi
   EOF
 
   notifies :run, "execute[install-nodes]", :immediately
-  not_if "test -d #{@home}/.nvm"
+  not_if "test -d #{$home}/.nvm"
 end
 
 execute "install-nodes" do
+  user  $user
+  group $group
+  cwd   $home
+
   @all_node_versions = Array(node['nvm']['node_versions'])
 
-  @all_node_versions.each do |node_version|
-    command <<-EOF
-nvm install #{node_version}
-nvm use #{node_version}
-    EOF
-  end
+  command @all_node_versions.map { |v| "nvm install #{v}" }.join("\n").strip
 
   if node['nvm']['default_node_version'] || @all_node_versions.count > 0
     notifies :run, "execute[make-default-node-version]", :immediately
@@ -55,8 +54,12 @@ nvm use #{node_version}
 end
 
 execute "make-default-node-version" do
+  user  $user
+  group $group
+  cwd   $home
+
   @default_node_version = node['nvm']['default_node_version'] || Array(node['nvm']['node_versions']).first
-  command "nvm default use #{@default_node_version}" 
+  command "nvm alias default #{@default_node_version}"
 
   action :nothing
 end
